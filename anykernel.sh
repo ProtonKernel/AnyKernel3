@@ -4,13 +4,14 @@
 ### AnyKernel setup
 # global properties
 properties() { '
-kernel.string=r9s Proton+ Kernel
+kernel.string=Proton+ Kernel (Exynos 2100)
 do.devicecheck=1
 do.modules=0
 do.systemless=1
 do.cleanup=1
 do.cleanuponabort=0
 device.name1=r9s
+device.name2=o1s
 supported.versions=
 supported.patchlevels=
 supported.vendorpatchlevels=
