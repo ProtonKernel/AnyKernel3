@@ -4,15 +4,15 @@
 ### AnyKernel setup
 # global properties
 properties() { '
-kernel.string=FloppyKernel v1.0 (early) for Ginkgo | @Flopster101
+kernel.string=ProtonKernel for a572q | credits to @Flopster101
 do.devicecheck=1
 do.modules=0
 do.systemless=1
 do.cleanup=1
 do.cleanuponabort=0
-device.name1=ginkgo
-device.name2=willow
-supported.versions=10.0-15.0
+device.name1=a52q
+device.name2=a72q
+supported.versions=
 supported.patchlevels=
 supported.vendorpatchlevels=
 '; } # end properties
