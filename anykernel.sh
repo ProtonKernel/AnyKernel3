@@ -36,6 +36,72 @@ PATCH_VBMETA_FLAG=auto;
 # import functions/variables and setup patching - see for reference (DO NOT REMOVE)
 . tools/ak3-core.sh;
 
+# Detect Android release and patch kernel cmdline default if needed
+ui_print "Detecting Android release for uname_bpf_spoof patch..."
+
+# Prefer the release string, fall back to SDK if release is missing or non-numeric.
+android_release="$(getprop ro.build.version.release 2>/dev/null || true)"
+android_sdk="$(getprop ro.build.version.sdk 2>/dev/null || true)"
+
+# If getprop returns something useless, try to read build.prop from common locations.
+probe_build_prop() {
+  # from ak3-core.sh
+  if [ -f "$1" ]; then
+    [ -z "$android_release" ] && android_release="$(file_getprop "$1" ro.build.version.release)"
+    [ -z "$android_sdk" ] && android_sdk="$(file_getprop "$1" ro.build.version.sdk)"
+  fi
+}
+
+# Try probing usual locations
+if [ -z "$android_release" ] || ! echo "$android_release" | grep -Eq '^[0-9]'; then
+  # Try /system and /system_root/system
+  if [ ! -f /system/build.prop ]; then
+    mount -o ro /system 2>/dev/null || mount -o ro /dev/block/mapper/system /system 2>/dev/null || true
+  fi
+  probe_build_prop /system/build.prop
+  probe_build_prop /system_root/system/build.prop
+  if [ -z "$android_release" ] && [ ! -f /vendor/build.prop ]; then
+    mount -o ro /vendor 2>/dev/null || mount -o ro /dev/block/mapper/vendor /vendor 2>/dev/null || true
+  fi
+  probe_build_prop /vendor/build.prop
+fi
+
+# Normalize and decide using release major or SDK fallback
+android_major="${android_release%%.*}"
+patch_needed=0
+if [ -n "$android_major" ] && echo "$android_major" | grep -Eq '^[0-9]+$'; then
+  if [ "$android_major" -ge 16 ]; then
+    patch_needed=1
+  fi
+else
+  # Fallback: if sdk is available and numeric, treat SDK >= 36 as Android 16+
+  if echo "$android_sdk" | grep -Eq '^[0-9]+$' && [ "$android_sdk" -ge 36 ]; then
+    patch_needed=1
+  fi
+fi
+
+if [ "$patch_needed" -eq 1 ]; then
+  ui_print "=> Detected Android >=16 (release: $android_release, sdk: $android_sdk). Enabling uname spoof."
+
+  old_hex="756e616d655f6270665f73706f6f663d30"  # "uname_bpf_spoof=0"
+  new_hex="756e616d655f6270665f73706f6f663d31"  # "uname_bpf_spoof=1"
+
+  $BIN/magiskboot hexpatch $AKHOME/Image "$old_hex" "$new_hex"
+
+  if [ $? -eq 0 ]; then
+    ui_print "Kernel successfully patched to enable uname_bpf_spoof."
+  else
+    # if hexpatch failed, check if already patched
+    if hexdump -C $AKHOME/Image 2>/dev/null | grep -qi "$new_hex" 2>/dev/null; then
+      ui_print "Kernel already has uname_bpf_spoof=1 set."
+    else
+      ui_print "Warning: uname_bpf_spoof patch failed or string not present in Image. Skipping."
+    fi
+  fi
+else
+  ui_print "=> Skipping uname spoof patch (release: $android_release, sdk: $android_sdk)."
+fi
+
 # boot install
 split_boot; # use split_boot to skip ramdisk unpack, e.g. for devices with init_boot ramdisk
 
