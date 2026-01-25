@@ -39,31 +39,18 @@ PATCH_VBMETA_FLAG=auto;
 # Detect Android release and patch kernel cmdline default if needed
 ui_print "Detecting Android release for uname_bpf_spoof patch..."
 
-# Prefer the release string, fall back to SDK if release is missing or non-numeric.
-android_release="$(getprop ro.build.version.release 2>/dev/null || true)"
-android_sdk="$(getprop ro.build.version.sdk 2>/dev/null || true)"
-
-# If getprop returns something useless, try to read build.prop from common locations.
-probe_build_prop() {
-  # from ak3-core.sh
-  if [ -f "$1" ]; then
-    [ -z "$android_release" ] && android_release="$(file_getprop "$1" ro.build.version.release)"
-    [ -z "$android_sdk" ] && android_sdk="$(file_getprop "$1" ro.build.version.sdk)"
+if [ -f /system/build.prop ]; then
+  android_release="$(file_getprop /system/build.prop ro.build.version.release)"
+  android_sdk="$(file_getprop /system/build.prop ro.build.version.sdk)"
+elif [ -f /system_root/system/build.prop ]; then
+  android_release="$(file_getprop /system_root/system/build.prop ro.build.version.release)"
+  android_sdk="$(file_getprop /system_root/system/build.prop ro.build.version.sdk)"
+else
+  mount -o ro /system_root 2>/dev/null || mount -o ro /dev/block/mapper/system /system_root 2>/dev/null
+  if [ -f /system_root/system/build.prop ]; then
+    android_release="$(file_getprop /system_root/system/build.prop ro.build.version.release)"
+    android_sdk="$(file_getprop /system_root/system/build.prop ro.build.version.sdk)"
   fi
-}
-
-# Try probing usual locations
-if [ -z "$android_release" ] || ! echo "$android_release" | grep -Eq '^[0-9]'; then
-  # Try /system and /system_root/system
-  if [ ! -f /system/build.prop ]; then
-    mount -o ro /system 2>/dev/null || mount -o ro /dev/block/mapper/system /system 2>/dev/null || true
-  fi
-  probe_build_prop /system/build.prop
-  probe_build_prop /system_root/system/build.prop
-  if [ -z "$android_release" ] && [ ! -f /vendor/build.prop ]; then
-    mount -o ro /vendor 2>/dev/null || mount -o ro /dev/block/mapper/vendor /vendor 2>/dev/null || true
-  fi
-  probe_build_prop /vendor/build.prop
 fi
 
 # Normalize and decide using release major or SDK fallback
